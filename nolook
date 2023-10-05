@@ -1,0 +1,48 @@
+# CA VM PREP
+dhclient
+create named user
+run SSHD for SCP
+update firewall for port 22
+
+# CA CONFIGURATION
+cd /etc/pki/CA (CA directory)
+touch index.txt
+echo 1000 > serial 
+## (for assigning serial numbers to certs)
+openssl genrsa -des3 -out private/cakey.pem 2048 
+## (generates RSA key with triple des cipher and 2048-bit modulus as cakey.pem)
+openssl req -new -x509 -days 365 -key private/cakey.pem -out cacert.pem 
+## (creates new self-signed cert under cacert.pem)
+## make note of entries
+
+# WEB SERVER VM PREP
+dhclient
+create named user
+run SSHD for SCP
+update firewall for port 22
+
+# WEB SERVER CONFIGURATION
+openssl req -newkey rsa:2048 -keyout websrv.key -out websrv.csr 
+## (generates 2048-bit RSA key, outputs key to websrv.key, outputs to websrv.csr)
+## match entries
+scp websrv.csr jack@CA_IP:/etc/pki/CA 
+## (copies websrv.csr to CA)
+
+# SIGN ON CA
+openssl ca -out websrv.crt -infiles websrv.csr
+## (signs cert, output in websrv.crt, cert in websrv.csr)
+ls -l
+cat websrv.csr
+scp websrv.crt jack@webserver_IP:/home/jack
+## (copies cert to webserver)
+
+# HTTPS ON APACHE
+cp websrv.crt /etc/pki/tls/certs
+cp websrv.key /etc/pki/tls/private
+yum -y install mod_ssl
+## installs mod-ssl
+Update /etc/httpd/conf.d/ssl.conf
+## SSLCertificateFile matches websrv.cert
+## SSLCertificateKeyFile matches websrv.key
+update/reload firewall for 443/tcp
+restart httpd
